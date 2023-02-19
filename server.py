@@ -10,37 +10,65 @@ port = 1221
 clients = []
 usernames = []
 
+messages_to_send = dict()
 receivers = dict()
 
-def broadcat(message):
+def get_username(client):
+    index = clients.index(client)
+    username = usernames[index]
+    return username
+
+def new_line_and_encode(message):
+    message = message + '\n'
+    return message.encode()
+
+
+def send_offline_messages(username, client):
+    try:
+        offline_messages = messages_to_send[username]
+        for message in offline_messages:
+            client.send(new_line_and_encode(message))
+    except:
+        pass
+
+
+def broadcast(message):
     for client in clients:
         client.send(message)
 
 
-def send_to(message, receiver):
-        print(message)
+def send_to(message, receiver, sender):
+    try:
+        sender_username = get_username(sender)
+        message = sender_username + ': ' + message
+
         client = receivers[receiver]
-        print(client)
-        client.send(message.encode())
+        client.send(new_line_and_encode(message))
+    except:
+        sender.send(f"{receiver} is currently offline\n".encode())
+        # save meesages to send them later
+        if not receiver in messages_to_send:
+            messages_to_send[receiver] = []
+        messages_to_send[receiver].append(message)
 
 
 def handle(client):
     while True:
         try:
             received_message = client.recv(1024).decode()
-            print(received_message)
             receiver, message = received_message.split(':')
-            send_to(message, receiver)
+            if receiver != '':
+                send_to(message, receiver, client)
+            else:
+                broadcast(new_line_and_encode(message))
         except Exception as ex:
             index = clients.index(client)
             clients.remove(client)
             client.close()
             username = usernames[index]
-            broadcat('{} left!'.format(username).encode())
+            broadcast('{} left!\n'.format(username).encode())
             usernames.remove(username)
-            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
-            message = template.format(type(ex).__name__, ex.args)
-            print(message)
+            print(ex)
             break
 
 
@@ -55,9 +83,12 @@ def receive():
         clients.append(client)
         receivers[username] = client
 
-        print("Username is {}".format(username))
-        broadcat("{} joined!".format(username).encode())
-        client.send('Connected to server!'.encode())
+        # send messaged that were received while offline
+        send_offline_messages(username, client)
+
+        print("Username is {}\n".format(username))
+        broadcast("{} joined!\n".format(username).encode())
+        client.send('Connected to server!\n'.encode())
 
         thread = threading.Thread(target=handle, args=(client,))
         thread.start()

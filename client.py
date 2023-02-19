@@ -22,13 +22,14 @@ def receive():
             else:
                 print(message)
         except:
-            print("An error occured!")
+            print("An error occurred!")
             client.close()
             break
 
 
 def write():
     while True:
+        # currently, the sender is set when connection between a server and a client is open, but can be entered manually
         message = '{}:{}'.format(chat_with, input(''))
         client.send(message.encode())
 
